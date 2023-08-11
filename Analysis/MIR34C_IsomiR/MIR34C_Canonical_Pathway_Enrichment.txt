@@ -1,0 +1,6 @@
+ID	Gene Name	Species
+ABCA1	ATP-binding cassette, sub-family A (ABC1), member 1	Homo sapiens	
+ARHGDIB	Rho GDP dissociation inhibitor (GDI) beta	Homo sapiens	
+DBNL	drebrin-like	Homo sapiens	
+MAP2K1	mitogen-activated protein kinase kinase 1	Homo sapiens	
+RRAS	related RAS viral (r-ras) oncogene homolog	Homo sapiens	

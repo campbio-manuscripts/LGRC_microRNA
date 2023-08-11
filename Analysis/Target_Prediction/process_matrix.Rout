@@ -1,0 +1,87 @@
+
+R version 2.15.1 (2012-06-22) -- "Roasted Marshmallows"
+Copyright (C) 2012 The R Foundation for Statistical Computing
+ISBN 3-900051-07-0
+Platform: x86_64-unknown-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+  Natural language support but running in an English locale
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> ## Process targetscan results into a matrix
+> 
+> ## Read in genes
+> UTRs = read.table(gzfile("UTR_Sequences_human_for_ts.txt.gz"), sep="\t", header=FALSE, stringsAsFactors=FALSE)
+> my.gene = unique(UTRs[UTRs[,2] == 9606,1])
+> 
+> ## Read in microRNAs
+> seeds = read.table("IsomiR_Seeds_Filtered_For_TS.txt", sep="\t", stringsAsFactors=FALSE)
+> my.mir = unique(seeds[,1])
+> 
+> ## Set up full matrix
+> target.matrix = matrix(0, nrow=length(my.gene), ncol=length(my.mir))
+> colnames(target.matrix) = my.mir
+> rownames(target.matrix) = my.gene
+> 
+> ## Parse targetscan results file, one line at a time, and count the number of seeds of each miRNA in each UTR
+> 
+> cc = rep(c("character", "NULL"), c(2, 11))
+> ts.results = read.table("IsomiR_seed_hits.txt", header=TRUE, sep="\t", colClasses=cc, as.is=TRUE, check.names=FALSE, fill=TRUE)
+> for(i in 1:nrow(ts.results)) {
++   target.matrix[ts.results[i,1], ts.results[i,2]] = target.matrix[ts.results[i,1], ts.results[i,2]] + 1
++ }
+> 
+> 
+> ## Intersect genes miRs with those in mRNA and miRNA data
+> library(affy)
+Loading required package: BiocGenerics
+
+Attaching package: 'BiocGenerics'
+
+The following object(s) are masked from 'package:stats':
+
+    xtabs
+
+The following object(s) are masked from 'package:base':
+
+    anyDuplicated, cbind, colnames, duplicated, eval, Filter, Find,
+    get, intersect, lapply, Map, mapply, mget, order, paste, pmax,
+    pmax.int, pmin, pmin.int, Position, rbind, Reduce, rep.int,
+    rownames, sapply, setdiff, table, tapply, union, unique
+
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+> mRNA.data = readRDS("../../Data/Gene/LGRC_Gene_Overlap_MicroRNA.rds")
+> mRNA.annot = fData(mRNA.data)
+> 
+> miRNA.data = readRDS("../../Data/MicroRNA/LGRC_MicroRNA_Isoform_RPM_Log2_Combat.rds")
+> miRNA.annot = fData(miRNA.data)
+> 
+> 
+> refseq.match = match(mRNA.annot$REFSEQ, rownames(target.matrix))
+> mir.match = match(rownames(miRNA.annot), colnames(target.matrix))
+> target.matrix.matched = target.matrix[refseq.match, mir.match]
+> 
+> target.matrix.matched[is.na(target.matrix.matched)] = 0
+> rownames(target.matrix.matched) = rownames(mRNA.annot)
+> 
+> saveRDS(target.matrix, "130826_IsomiR_Targets_All_Refseq.rds")
+> saveRDS(target.matrix.matched, "130826_IsomiR_Targets_Matched.rds")
+> 
+> 
+> 

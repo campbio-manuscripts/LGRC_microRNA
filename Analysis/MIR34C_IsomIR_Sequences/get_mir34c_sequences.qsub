@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# Run this file using 'qsub job.sh'
+#
+# All lines starting with "#$" are SGE qsub commands
+#
+
+# Specify which shell to use
+#$ -S /bin/bash
+
+# Run on the current working directory
+#$ -cwd
+
+# Join standard output and error to a single file
+#$ -j y
+
+#$ -o qsub.log
+#$ -N mir34c
+#$ -P camplab
+
+# Now let's keep track of some information just in case anything goes wrong
+echo "=========================================================="
+echo "Starting on       : $(date)"
+echo "Running on node   : $(hostname)"
+echo "Current directory : $(pwd)"
+echo "Current job ID    : $JOB_ID"
+echo "Current job name  : $JOB_NAME"
+echo "Task index number : $TASK_ID"
+echo "=========================================================="
+echo ""
+
+# Laod bedtools
+source /etc/bashrc
+module load bedtools/2.30.0
+
+# Get bam list
+mkdir -p temp_fastq temp_bam
+ls ../../../Unprotected_lgrc_365/Alignment_Pipeline/align/*.bam > bam_list.txt
+
+# For each bam, get sequences that overlap with mir34c and convert to fastq
+while read line
+do
+  id=`basename $line _sort.bam`
+  echo $id
+  
+  intersectBed -s -abam $line -b mir34c.bed > temp_bam/$id".bam"
+  bamToFastq -i temp_bam/$id".bam" -fq temp_fastq/$id".fq"
+done < bam_list.txt
+
+# Parse fastq files and count sequences
+R --no-save < process_counts_mir34c.R &> process_counts_mir34c.Rout
+
+# Remove temp files when done
+rm -rf temp_fastq temp_bam
+
+echo "=========================================================="
+echo "$JOB_ID finished on       : $(date)"
+echo "=========================================================="

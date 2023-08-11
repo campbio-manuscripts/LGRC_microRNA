@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# Run this file using 'qsub job.sh'
+#
+# All lines starting with "#$" are SGE qsub commands
+#
+
+# Specify which shell to use
+#$ -S /bin/bash
+
+# Run on the current working directory
+#$ -cwd
+
+# Give this job a name 
+#$ -N ts
+
+# Join standard output and error to a single file
+#$ -j y
+
+# Name the file where to redirect standard output and error
+#$ -o ts_log
+
+#$ -l mem_free=20g
+
+#$ -P lgrc
+
+# Now let's keep track of some information just in case anything goes wrong
+
+echo "=========================================================="
+echo "Starting on       : $(date)"
+echo "Running on node   : $(hostname)"
+echo "Current directory : $(pwd)"
+echo "Current job ID    : $JOB_ID"
+echo "Current job name  : $JOB_NAME"
+echo "Task index number : $TASK_ID"
+echo "=========================================================="
+
+gunzip UTR_Sequences_human_for_ts.txt.gz
+perl targetscan_60.pl IsomiR_Seeds_Filtered_For_TS.txt UTR_Sequences_human_for_ts.txt IsomiR_seed_hits.txt
+gzip UTR_Sequences_human_for_ts.txt
+
+R-2.15.1 --no-save < process_matrix.R &> process_matrix.Rout
+
+
+echo "=========================================================="
+echo "Finished on       : $(date)"
+echo "=========================================================="

@@ -1,0 +1,16 @@
+The line in the preprocessing script:
+
+write.table2(isoform.snp.overlap, "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.txt")
+
+should have been:
+
+write.table2(isoform.snp.overlap, "../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_SNP_All_Samples.txt")
+
+This originally made the file "LGRC_MicroRNA_Overlap_SNP_All_Samples.txt" contain isomiRs (n=1291) features instead of general miRNAs (n=693). However, the matrix stored in the RDS file was correct. To fix the file, the following line of code was run on 8/29/2021:
+
+> library(affy)
+> d = readRDS("../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.rds")
+> m = exprs(d)
+> write.table(matrix(c("ID", colnames(m)), nrow=1), "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.txt", sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+> write.table(m, "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.txt", sep="\t", row.names=TRUE, col.names=FALSE, quote=FALSE, append=TRUE)
+

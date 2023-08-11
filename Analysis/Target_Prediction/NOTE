@@ -1,0 +1,12 @@
+The file "IsomiR_seed_hits.txt" was split into 2 files for achival purposes:
+
+head -n 4000000 IsomiR_seed_hits.txt > IsomiR_seed_hits_1.txt
+tail -n +4000001 IsomiR_seed_hits.txt > IsomiR_seed_hits_2.txt
+
+gzip -f IsomiR_seed_hits_1.txt
+gzip -f IsomiR_seed_hits_2.txt
+
+To recreate the original file, run:
+
+gunzip IsomiR_seed_hits_1.txt.gz IsomiR_seed_hits_2.txt.gz
+cat IsomiR_seed_hits_1.txt IsomiR_seed_hits_2.txt > IsomiR_seed_hits.txt

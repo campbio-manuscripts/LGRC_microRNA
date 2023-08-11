@@ -1,0 +1,13 @@
+SNP	SNP_Chr	SNP_Start	Number_genes	SNP_BIO
+kgp1528198_G	chr8	40701174	87	ZMAT4 Description: Homo sapiens zinc finger, matrin-type 4 (ZMAT4), transcript variant 1, mRNA. 
+kgp9118259_C	chr3	20991567	23	nothing
+kgp5547826_C	chr11	50497205	9	nothing
+kgp10971432_T	chr11	50531319	4	nothing
+kgp3321351_T	chr11	50630255	4	nothing
+kgp11713496_A	chr11	50668576	4	nothing
+rs2734335_T	chr6	31893944	3	EHMT2 RefSeq Summary (NM_001289413): This gene encodes a methyltransferase that methylates lysine residues of histone H3. Methylation of H3 at lysine 9 by this protein results in recruitment of additional epigenetic regulators and repression of transcription. This gene was initially thought to be two different genes, NG36 and G9a, adjacent to each other in the HLA locus. Alternative splicing results in multiple transcript variants.
+rs8040009_C	chr15	93044339	2	RGMA RefSeq Summary (NM_001166289): This gene encodes a member of the repulsive guidance molecule family. The encoded protein is a glycosylphosphatidylinositol-anchored glycoprotein that functions as an axon guidance protein in the developing and adult central nervous system. This protein may also function as a tumor suppressor in some cancers. Alternate splicing results in multiple transcript variants.
+kgp1452379_A	chr9	29262218	2	nothing
+kgp9156803_A	chr9	29284567	2	nothing
+rs4459934_G	chr3	77123961	1	ROBO2 RefSeq Summary (NM_001128929): The protein encoded by this gene belongs to the ROBO family, part of the immunoglobulin superfamily of proteins that are highly conserved from fly to human. The encoded protein is a transmembrane receptor for the slit homolog 2 protein and functions in axon guidance and cell migration. Mutations in this gene are associated with vesicoureteral reflux, characterized by the backward flow of urine from the bladder into the ureters or the kidney. Alternative splicing results in multiple transcript variants.
+kgp10062335_G	chr3	77124814	1	ROBO2 RefSeq Summary (NM_001128929): The protein encoded by this gene belongs to the ROBO family, part of the immunoglobulin superfamily of proteins that are highly conserved from fly to human. The encoded protein is a transmembrane receptor for the slit homolog 2 protein and functions in axon guidance and cell migration. Mutations in this gene are associated with vesicoureteral reflux, characterized by the backward flow of urine from the bladder into the ureters or the kidney. Alternative splicing results in multiple transcript variants.

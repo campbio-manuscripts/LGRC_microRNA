@@ -1,0 +1,91 @@
+## Align fastqs and create expression matrices
+Folder: /restricted/projectnb/lgrc/small_RNA/Unprotected_lgrc_365/Alignment_Pipeline/
+Command:
+qsub miR_Seq.qsub
+qsub miR_Seq_finalize.qsub
+
+Notes:
+- The output file for the canonical miRNA expression is here:
+/restricted/projectnb/lgrc/small_RNA/Unprotected_lgrc_365/Alignment_Pipeline/expression/expression_annotation.txt
+It was renamed to 130720_LGRC_miRNA_Counts.txt and moved to:
+/restricted/projectnb/lgrc/small_RNA/Final_Analysis/Data/MicroRNA
+
+- Similarly, the output file for the isomiR expression is here:
+/restricted/projectnb/lgrc/small_RNA/Unprotected_lgrc_365/Alignment_Pipeline/expression/expression_isoform_start.txt
+It was renamed to 130720_LGRC_Isoform_Start_Counts.txt and moved to:
+/restricted/projectnb/lgrc/small_RNA/Final_Analysis/Data/MicroRNA/
+
+- The QC Stats file and PDF can be found here:
+/restricted/projectnb/lgrc/small_RNA/Unprotected_lgrc_365/Alignment_Pipeline/qc/
+
+## Preprocess and QC data
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/Preprocess
+Command: R --no-save < Preprocess.R &> Preprocess.Rout
+
+## Copy QC stats table and plots
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/QC
+Command: cp /restricted/projectnb/lgrc/small_RNA/Unprotected_lgrc_365/Alignment_Pipeline/qc/qc_* ./
+
+## Predict targets for canonical and isomiR seeds that where present after filtering for expression levels
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/Target_Prediction
+Command: qsub run.qsub
+
+## Perform differential expression and clustering
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/Differential_Expression
+Command: R --no-save < Differential_Expression.R &> Differential_Expression.Rout
+
+## Perform eQTL and CIT test for All samples
+Folder: /restricted/projectnb/lgrc/small_RNA/MatrixEQTL/All
+Commands:
+R --no-save < MatrixEQTL.R &> MatrixEQTL.Rout
+R --no-save < run_cit_All.R &> run_cit_All.Rout
+Note: Results were copied to /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/MatrixEQTL/All
+
+## Perform eQTL and CIT test for COPD samples
+Folder: /restricted/projectnb/lgrc/small_RNA/MatrixEQTL/COPD
+Commands:
+R --no-save < MatrixEQTL.R &> MatrixEQTL.Rout
+R --no-save < run_cit_COPD.R &> run_cit_COPD.Rout
+Note: Results were copied to /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/MatrixEQTL/COPD
+
+## Perform eQTL and CIT test for ILD samples
+Folder: /restricted/projectnb/lgrc/small_RNA/MatrixEQTL/ILD
+Commands:
+R --no-save < MatrixEQTL.R &> MatrixEQTL.Rout
+R --no-save < run_cit_ILD.R &> run_cit_ILD.Rout
+Note: Results were copied to /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/MatrixEQTL/ILD
+
+## Perform eQTL and CIT test for Control samples
+Folder: /restricted/projectnb/lgrc/small_RNA/MatrixEQTL/Control
+Commands:
+R --no-save < MatrixEQTL.R &> MatrixEQTL.Rout
+R --no-save < run_cit_Control.R &> run_cit_Control.Rout
+Note: Results were copied to /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/MatrixEQTL/Control
+
+## Analyze eQTL/CIT networks
+Folder (original): /restricted/projectnb/pulmseq/Allegro/Bronch_microRNA/edrn243/Analysis/LGRC_paper/Triplets_Analysis
+Note: Results were copied to /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/Triplets_Analysis/
+
+## Count different miR-34c sequences
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/MIR34C_IsomiR_Sequences
+Commands:
+qsub get_mir34c_sequences.qsub   ## Get sequences from bams
+gzip mir34c_sequence_counts.txt  ## Gzip sequences file
+R --no-save < process_counts_mir34c.R &> process_counts_mir34c.Rout  ## Process counts into a matrix
+R --no-save < quantify_mir34c_sequences.R &> quantify_mir34c_sequences.Rout  ## Perform DE and make plots/tables
+
+## Examine correlations between miR-34c canonical/isomiR seeds and predicted target genes
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/MIR34C_IsomiR
+Command: R --no-save < mir34c_anticorrelation.R &> mir34c_anticorrelation.Rout
+
+## Prepare GEO submission
+Folder: /restricted/projectnb/lgrc/small_RNA/Final_Analysis/Analysis/GEO_Submission
+Command: R --no-save < LGRC_miRNA_GEO_prepare_full.R &> LGRC_miRNA_GEO_prepare_full.Rout
+
+
+General Note: All flat ".txt" files have been gzipped for archiving. These may need to be gunzipped if trying to rerun scripts.
+
+
+
+
+

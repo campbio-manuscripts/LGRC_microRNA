@@ -1,0 +1,224 @@
+
+R version 3.3.2 (2016-10-31) -- "Sincere Pumpkin Patch"
+Copyright (C) 2016 The R Foundation for Statistical Computing
+Platform: x86_64-pc-linux-gnu (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(affy)
+Loading required package: BiocGenerics
+Loading required package: parallel
+
+Attaching package: 'BiocGenerics'
+
+The following objects are masked from 'package:parallel':
+
+    clusterApply, clusterApplyLB, clusterCall, clusterEvalQ,
+    clusterExport, clusterMap, parApply, parCapply, parLapply,
+    parLapplyLB, parRapply, parSapply, parSapplyLB
+
+The following objects are masked from 'package:stats':
+
+    IQR, mad, xtabs
+
+The following objects are masked from 'package:base':
+
+    Filter, Find, Map, Position, Reduce, anyDuplicated, append,
+    as.data.frame, cbind, colnames, do.call, duplicated, eval, evalq,
+    get, grep, grepl, intersect, is.unsorted, lapply, lengths, mapply,
+    match, mget, order, paste, pmax, pmax.int, pmin, pmin.int, rank,
+    rbind, rownames, sapply, setdiff, sort, table, tapply, union,
+    unique, unsplit, which, which.max, which.min
+
+Loading required package: Biobase
+Welcome to Bioconductor
+
+    Vignettes contain introductory material; view with
+    'browseVignettes()'. To cite Bioconductor, see
+    'citation("Biobase")', and for packages 'citation("pkgname")'.
+
+> library(Biostrings)
+Loading required package: S4Vectors
+Loading required package: stats4
+
+Attaching package: 'S4Vectors'
+
+The following objects are masked from 'package:base':
+
+    colMeans, colSums, expand.grid, rowMeans, rowSums
+
+Loading required package: IRanges
+Loading required package: XVector
+> library(BSgenome.Hsapiens.UCSC.hg19)
+Loading required package: BSgenome
+Loading required package: GenomeInfoDb
+Loading required package: GenomicRanges
+Loading required package: rtracklayer
+> 
+> mir = readRDS("../../Data/MicroRNA/LGRC_MicroRNA_Overlap_Gene.rds")
+> gene = readRDS("../../Data/Gene/LGRC_Gene_Overlap_MicroRNA.rds")
+> iso = readRDS("../../Data/MicroRNA/LGRC_MicroRNA_Isoform_RPM_Log2_Batch_Corrected.rds")
+> 
+> 
+> targets = readRDS("../Target_Prediction/130826_IsomiR_Targets_Matched.rds")
+> targets.locus = substring(colnames(targets), 1, 22)
+> mir.34c.isomir = "MI0000743_MIMAT0000686_111384175"
+> mir.34c.canonical = "MI0000743_MIMAT0000686_111384176"
+> 
+> matrix.cor = function(m1, m2, method="spearman") {
++   all.corr <- t(cor(t(m1), t(m2), method=method))
++   all.corr.t <- all.corr / (sqrt( (1 - (all.corr^2)) / (ncol(m1) - 2)))
++   all.corr.t.p <- 2*(1 - pt(abs(all.corr.t), ncol(m1) - 2))
++   f = p.adjust(all.corr.t.p, 'fdr')
++   f.m = matrix(f, nrow=nrow(all.corr.t.p), ncol=ncol(all.corr.t.p))
++   colnames(f.m) = rownames(m1)
++   rownames(f.m) = rownames(m2)
++   return(list(Cor=all.corr, Cor.t=all.corr.t, Cor.p=all.corr.t.p, Cor.fdr=f.m))
++ }
+> 
+> ild.cor = matrix.cor(exprs(gene[,gene$ILD == 1]), exprs(mir[,mir$ILD == 1]))
+> copd.cor = matrix.cor(exprs(gene[,gene$COPD == 1]), exprs(mir[,mir$COPD == 1]))
+> control.cor = matrix.cor(exprs(gene[,gene$Control == 1]), exprs(mir[,mir$Control == 1]))
+> 
+> 
+> 
+> mir34c.isomir.anti.targets.ind = ild.cor$Cor.fdr["MI0000743_MIMAT0000686",] < 0.25 & ild.cor$Cor["MI0000743_MIMAT0000686",] < 0 & targets[,mir.34c.isomir] > 0
+> mir34c.isomir.anti.targets.names = fData(gene)[mir34c.isomir.anti.targets.ind,"GENE_SYMBOL"]
+> 
+> mir34c.canonical.anti.targets.ind = ild.cor$Cor.fdr["MI0000743_MIMAT0000686",] < 0.25 & ild.cor$Cor["MI0000743_MIMAT0000686",] < 0 & targets[,mir.34c.canonical] > 0
+> mir34c.canonical.anti.targets.names = fData(gene)[mir34c.canonical.anti.targets.ind,"GENE_SYMBOL"]
+> 
+> write.table(setdiff(mir34c.isomir.anti.targets.names, mir34c.canonical.anti.targets.names), "MIR34C_ISOMIR_ONLY.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+> write.table(setdiff(mir34c.canonical.anti.targets.names, mir34c.isomir.anti.targets.names), "MIR34C_CANONICAL_ONLY.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+> write.table(c(as.character(mir34c.isomir.anti.targets.names), as.character(mir34c.canonical.anti.targets.names)), "MIR34C_UNION.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+> write.table(intersect(mir34c.isomir.anti.targets.names, mir34c.canonical.anti.targets.names), "MIR34C_INTERSECT.txt", sep="\t", quote=FALSE, row.names=FALSE, col.names=FALSE)
+> 
+> 
+> i1 = unique(c(as.character(mir34c.isomir.anti.targets.names), as.character(mir34c.canonical.anti.targets.names)))
+> i2 = setdiff(as.character(mir34c.isomir.anti.targets.names), as.character(mir34c.canonical.anti.targets.names))
+> i3 = setdiff(as.character(mir34c.canonical.anti.targets.names), as.character(mir34c.isomir.anti.targets.names))
+> m = matrix(0, ncol=2, nrow=length(i1))
+> colnames(m) = c("Canonical", "IsomiR")
+> rownames(m) = i1
+> m[as.character(mir34c.canonical.anti.targets.names),1] = 1
+> m[as.character(mir34c.isomir.anti.targets.names),2] = 1
+> 
+> library(limma)
+
+Attaching package: 'limma'
+
+The following object is masked from 'package:BiocGenerics':
+
+    plotMA
+
+> pdf("MIR34C_IsomiR_Target_Overlap.pdf", useDingbats=FALSE)
+> par(mfrow=c(2,2))
+> 
+> mir34c.isomir.targets.ind = targets[,mir.34c.isomir] > 0
+> mir34c.canonical.targets.ind = targets[,mir.34c.canonical] > 0
+> mir34c.all.targets.ind = mir34c.canonical.targets.ind | mir34c.isomir.targets.ind
+> 
+> plot(density(ild.cor$Cor["MI0000743_MIMAT0000686",!mir34c.all.targets.ind]), lwd=2, xlab="Spearman correlation coefficient", main="Distribution of gene correlations to miR-34c")
+> lines(density(ild.cor$Cor["MI0000743_MIMAT0000686",!mir34c.isomir.targets.ind & mir34c.canonical.targets.ind]), lwd=2, col="red")
+> lines(density(ild.cor$Cor["MI0000743_MIMAT0000686",mir34c.isomir.targets.ind & !mir34c.canonical.targets.ind]), lwd=2, col="blue")
+> lines(density(ild.cor$Cor["MI0000743_MIMAT0000686",mir34c.isomir.targets.ind & mir34c.canonical.targets.ind]), lwd=2, col="yellow")
+> legend("topright", c("IsomiR only", "Canonical only", "Both", "Neither"), title="Predicted targets", col=c("blue", "red", "yellow", "black"), lwd=2)
+> 
+> wilcox.test(ild.cor$Cor["MI0000743_MIMAT0000686",!mir34c.isomir.targets.ind & mir34c.canonical.targets.ind], ild.cor$Cor["MI0000743_MIMAT0000686",!mir34c.all.targets.ind])
+
+	Wilcoxon rank sum test with continuity correction
+
+data:  ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.isomir.targets.ind &  and ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.all.targets.ind]    mir34c.canonical.targets.ind] and ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.all.targets.ind]
+W = 7263300, p-value = 9.025e-15
+alternative hypothesis: true location shift is not equal to 0
+
+> wilcox.test(ild.cor$Cor["MI0000743_MIMAT0000686",mir34c.isomir.targets.ind & !mir34c.canonical.targets.ind], ild.cor$Cor["MI0000743_MIMAT0000686",!mir34c.all.targets.ind])
+
+	Wilcoxon rank sum test with continuity correction
+
+data:  ild.cor$Cor["MI0000743_MIMAT0000686", mir34c.isomir.targets.ind &  and ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.all.targets.ind]    !mir34c.canonical.targets.ind] and ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.all.targets.ind]
+W = 6323300, p-value = 0.001324
+alternative hypothesis: true location shift is not equal to 0
+
+> wilcox.test(ild.cor$Cor["MI0000743_MIMAT0000686",mir34c.isomir.targets.ind & mir34c.canonical.targets.ind], ild.cor$Cor["MI0000743_MIMAT0000686",!mir34c.all.targets.ind])
+
+	Wilcoxon rank sum test with continuity correction
+
+data:  ild.cor$Cor["MI0000743_MIMAT0000686", mir34c.isomir.targets.ind &  and ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.all.targets.ind]    mir34c.canonical.targets.ind] and ild.cor$Cor["MI0000743_MIMAT0000686", !mir34c.all.targets.ind]
+W = 5322500, p-value = 1.659e-12
+alternative hypothesis: true location shift is not equal to 0
+
+> 
+> m = cbind(IsomiR=mir34c.isomir.anti.targets.ind+0, Canonical=mir34c.canonical.anti.targets.ind+0)
+> vc = vennCounts(m)
+> vennDiagram(vc)
+> 
+> dev.off()
+null device 
+          1 
+> 
+> 
+> 
+> 
+> ## Summarize Counts/RPM of isoforms
+> 
+> iso.rpm = readRDS("../../Data/MicroRNA/LGRC_MicroRNA_Isoform_RPM_Log2_Present.rds")
+> iso.counts = readRDS("../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Counts.rds")
+> fdata = fData(iso.rpm)
+> 
+> 
+> forward = as.character(getSeq(BSgenome.Hsapiens.UCSC.hg19, fdata$Chrom, fdata$Start+1, fdata$Start+7, as.character=F))
+> reverse = as.character(reverseComplement(getSeq(BSgenome.Hsapiens.UCSC.hg19, fdata$Chrom, fdata$Start-7, fdata$Start-1, as.character=F)))
+> 
+> seed = ifelse(fdata$Strand == "+", forward, reverse)
+> seed = gsub("T", "U", seed)
+> 
+> fdata = data.frame(fdata, Seed=seed, Avg_RPM=rowMeans(exprs(iso.rpm)), Total_Count=rowSums(exprs(iso.counts)), stringsAsFactors=FALSE)
+> fdata.select = fdata[grep("miR-34c-5p|miR-34b-5p|miR-449a|miR-449b|miR-449c", fdata$Name),]
+> 
+> write.table(fdata, "Isoform_Seed_Summary.txt", sep="\t", quote=FALSE, row.names=FALSE)
+> write.table(fdata.select, "Isoform_Seed_Summary_MIR34_449.txt", sep="\t", quote=FALSE, row.names=FALSE)
+> 
+> sessionInfo()
+R version 3.3.2 (2016-10-31)
+Platform: x86_64-pc-linux-gnu (64-bit)
+Running under: CentOS release 6.4 (Final)
+
+locale:
+[1] C
+
+attached base packages:
+[1] stats4    parallel  stats     graphics  grDevices utils     datasets 
+[8] methods   base     
+
+other attached packages:
+ [1] limma_3.30.13                     BSgenome.Hsapiens.UCSC.hg19_1.4.0
+ [3] BSgenome_1.42.0                   rtracklayer_1.34.2               
+ [5] GenomicRanges_1.26.4              GenomeInfoDb_1.10.3              
+ [7] Biostrings_2.42.1                 XVector_0.14.1                   
+ [9] IRanges_2.8.2                     S4Vectors_0.12.2                 
+[11] affy_1.52.0                       Biobase_2.34.0                   
+[13] BiocGenerics_0.20.0              
+
+loaded via a namespace (and not attached):
+ [1] zlibbioc_1.20.0            GenomicAlignments_1.10.1  
+ [3] BiocParallel_1.8.2         lattice_0.20-35           
+ [5] tools_3.3.2                SummarizedExperiment_1.4.0
+ [7] grid_3.3.2                 preprocessCore_1.36.0     
+ [9] affyio_1.44.0              Matrix_1.2-10             
+[11] bitops_1.0-6               RCurl_1.95-4.8            
+[13] BiocInstaller_1.24.0       Rsamtools_1.26.2          
+[15] XML_3.98-1.7              
+> date()
+[1] "Wed Mar 14 15:13:45 2018"
+> 

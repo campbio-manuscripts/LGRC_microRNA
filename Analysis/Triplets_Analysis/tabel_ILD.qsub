@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# Run this file using 'qsub job.sh'
+#
+# All lines starting with "#$" are SGE qsub commands
+#
+
+# Specify which shell to use
+#$ -S /bin/bash
+
+# Run on the current working directory
+#$ -cwd
+
+# Join standard output and error to a single file
+#$ -j y
+
+#$ -l h_rt=72:00:00
+
+# Name the file where to redirect standard output and error
+#$ -o matrix.qsub.log
+
+# Set Memory allocation
+#$ -l mem_free=30g
+
+# Set group
+#$ -P pulmseq
+
+# Send an email when the job begins and when it ends running
+## $ -m e
+
+# Whom to send the email to
+## $ -M anapavel@bu.edu
+
+module load R/R-2.15.1_gnu-4.4.6
+
+# Now let's keep track of some information just in case anything goes wrong
+
+echo "=========================================================="
+echo "Starting on       : $(date)"
+echo "Running on node   : $(hostname)"
+echo "Current directory : $(pwd)"
+echo "Current job ID    : $JOB_ID"
+echo "Current job name  : $JOB_NAME"
+echo "Task index number : $TASK_ID"
+echo "=========================================================="
+echo ""
+
+R --no-save < cnt_triplets_ILD.R &> cnt_triplets_ILD.Rout
+
+echo ""
+echo "=========================================================="
+echo "$JOB_ID finished on       : $(date)"
+echo "=========================================================="

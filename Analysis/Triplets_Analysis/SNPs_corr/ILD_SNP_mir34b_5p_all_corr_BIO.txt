@@ -1,0 +1,18 @@
+SNP	SNP_Chr	SNP_Start	Number_genes	SNP_BIO
+rs4810702_C	chr20	46438075	42	 AL831934; AK054905
+rs10887800_A	chr10	90075843	35	nothing
+kgp1452379_A	chr9	29262218	18	nothing
+kgp9156803_A	chr9	29284567	15	nothing
+kgp5547826_C	chr11	50497205	9	nothing
+kgp10971432_T	chr11	50531319	4	nothing
+kgp3321351_T	chr11	50630255	4	nothing
+kgp11713496_A	chr11	50668576	4	nothing
+rs2734335_T	chr6	31893944	3	EHMT2 RefSeq Summary (NM_001289413): This gene encodes a methyltransferase that methylates lysine residues of histone H3. Methylation of H3 at lysine 9 by this protein results in recruitment of additional epigenetic regulators and repression of transcription. This gene was initially thought to be two different genes, NG36 and G9a, adjacent to each other in the HLA locus. Alternative splicing results in multiple transcript variants.
+rs4459934_G	chr3	77123961	2	ROBO2 RefSeq Summary (NM_001128929): The protein encoded by this gene belongs to the ROBO family, part of the immunoglobulin superfamily of proteins that are highly conserved from fly to human. The encoded protein is a transmembrane receptor for the slit homolog 2 protein and functions in axon guidance and cell migration. Mutations in this gene are associated with vesicoureteral reflux, characterized by the backward flow of urine from the bladder into the ureters or the kidney. Alternative splicing results in multiple transcript variants.
+rs7618116_T	chr3	116475786	2	nothing
+rs1502635_C	chr5	3718000	2	nothing
+kgp10062335_G	chr3	77124814	2	ROBO2 RefSeq Summary (NM_001128929): The protein encoded by this gene belongs to the ROBO family, part of the immunoglobulin superfamily of proteins that are highly conserved from fly to human. The encoded protein is a transmembrane receptor for the slit homolog 2 protein and functions in axon guidance and cell migration. Mutations in this gene are associated with vesicoureteral reflux, characterized by the backward flow of urine from the bladder into the ureters or the kidney. Alternative splicing results in multiple transcript variants.
+kgp8291667_G	chr1	203019737	2	TMEM183A Description: Homo sapiens transmembrane protein 183A (TMEM183A), mRNA. 
+kgp9807667_T	chr3	116470735	1	nothing
+rs5754521_C	chr22	33711229	1	LARGE RefSeq Summary (NM_004737): This gene, which is one of the largest in the human genome, encodes a member of the N-acetylglucosaminyltransferase gene family. It encodes a glycosyltransferase which participates in glycosylation of alpha-dystroglycan, and may carry out the synthesis of glycoprotein and glycosphingolipid sugar chains. It may also be involved in the addition of a repeated disaccharide unit. Mutations in this gene cause MDC1D, a novel form of congenital muscular dystrophy with severe mental retardation and abnormal glycosylation of alpha-dystroglycan. Alternative splicing of this gene results in two transcript variants that encode the same protein.
+kgp1528198_G	chr8	40701174	1	ZMAT4 Description: Homo sapiens zinc finger, matrin-type 4 (ZMAT4), transcript variant 1, mRNA.

@@ -1,0 +1,1 @@
+Note that the raw SNP data file was not uploaded to GitHub because it is protected data. The SNP data is available from dbGaP under the accession phs000624.v1.p1. The primary input file is called "LGRC_SNP_All_Samples.txt" and contains 1 row for each SNP, 1 column for each sample, and a 0, 1, 2, or NA for each entry. 

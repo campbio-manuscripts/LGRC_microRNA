@@ -1,0 +1,448 @@
+## Libraries and custom functions #########################################################################################################################################
+library(affy)
+library(flashClust)
+library(sva)
+library(HardyWeinberg)
+Intersect <- function(...) { Reduce(intersect, list(...)) } 
+extract.number = function(x) { as.numeric(gsub("\\D", "", x)) }
+
+# Function to test for sufficient numbers of allele groups (e.g. sufficient number of samples in AB or BB groups in SNP data)
+sufficient.num = function(c, cutoff=5) {
+  sum1 = sum(c == 1, na.rm=TRUE)
+  if(sum1 < cutoff & sum1 > 0) {
+    c[which(c==1)] = NA
+  }
+        
+  sum2 = sum(c == 2, na.rm=TRUE)
+  if(sum2 < cutoff & sum2 > 0) {
+    c[which(c==2)] = NA
+  }
+  return(c)
+}
+
+# Writes a table in a format compatible with the MatrixEQTL package, and then gzips it
+write.table2 = function(m, filename) {
+  write.table(matrix(c("ID", colnames(m)), nrow=1), filename, sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+  write.table(m, filename, sep="\t", row.names=TRUE, col.names=FALSE, quote=FALSE, append=TRUE)
+  #system(paste("gzip -f", filename))
+}
+
+# Correct Expression values for covariates using a linear model
+residual.matrix <- function(the.matrix, the.model, the.coefficients=NULL) {
+        
+        # Note that no "NA"s can be in the model matrix
+        # Code from Marc Lenburg, 2010
+
+        if(is.null(the.coefficients)) {
+                # Solves the coefficients
+                resid.data <- as.matrix(the.matrix) %*% (diag(dim(the.matrix)[2]) - the.model %*% solve(t(the.model) %*% the.model) %*% t(the.model))
+        } else {
+                # Uses user-defined coeffiencts
+                resid.data <- as.matrix(the.matrix) - t(the.model %*% t(the.coefficients))
+        }
+
+        rownames(resid.data) <- rownames(the.matrix)
+        colnames(resid.data) <- colnames(the.matrix)
+        return(resid.data)
+}  
+
+
+
+pdf("PCAs.pdf", useDingbats=FALSE)
+
+
+## Read in QC metrics and demographic annotation ##########################################################################################################################
+qc = read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Data/MicroRNA/QC_table.txt", sep="\t", header=TRUE, row.names=1)
+demographics = read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Annotation/Sample_Demographics/111228_LGRC_MicroRNA_Demographics.txt", sep="\t", header=TRUE, quote="", row.names=1, check.names=FALSE)
+
+## Generate procotcol variable for QC table
+Protocol = ifelse(is.na(qc$Index), "Singleplex", "Multiplex")
+qc = data.frame(qc, Protocol)
+
+## Create a cleaned/simple demographics table for analysis
+disease.status = as.numeric(substring(demographics[,"Major.Diagnosis..Final.Clinical."], 1, 1))
+disease.status[disease.status == 3] = 0
+copd.status = ifelse(disease.status == 2, 1, 0) 
+ild.status = ifelse(disease.status == 1, 1, 0)
+control.status = ifelse(disease.status == 0, 1, 0)
+
+smoke.status = as.numeric(substring(demographics[,"Cigarette.smoking"], 1, 1))
+race = as.numeric(substring(demographics[,"Race.or.Ethnicity"], 1, 1))
+cancer.status = as.numeric(substring(demographics[,"f010qI.1K..Lung.Cancer"], 1, 1))
+gender = as.numeric(substring(demographics[,"Gender"], 1, 1))
+pemphy = as.numeric(demographics[,90])
+pack.years = as.numeric(demographics[,92])
+age = as.numeric(demographics[,94])
+fev1.pp = as.numeric(demographics[,98])
+fev1.fvc = as.numeric(demographics[,99])
+bode = as.numeric(demographics[,101])
+dlco = as.numeric(demographics[,53])
+
+demo.simple = data.frame(Disease=disease.status, Control=control.status, ILD=ild.status, COPD=copd.status,
+                         Smoke=smoke.status, Race=race, Cancer=cancer.status, Gender=gender, Age=age,
+						 Emphysema=pemphy, Pack_Years=pack.years, FEV1_Percent=fev1.pp, FEV1_FVC=fev1.fvc,
+						 BODE=bode, DLCO=dlco, check.names=FALSE)
+rownames(demo.simple) = rownames(demographics)
+
+
+
+## Parse isoform file into count and annotation matrices #################################################################################################################
+isoform.counts.full = read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Data/MicroRNA/130720_LGRC_Isoform_Start_Counts.txt", sep="\t", header=TRUE, stringsAsFactors=FALSE, check.names=FALSE)
+isoform.annotation.full = isoform.counts.full[,1:5]
+isoform.counts.full = as.matrix(isoform.counts.full[,-(1:5)])
+id.full = paste(isoform.annotation.full[,4], isoform.annotation.full[,2], sep="_")   ## Make the unique ID be the miRBase ID + start position
+rownames(isoform.counts.full) = id.full
+rownames(isoform.annotation.full) = id.full
+Canonical = rep(rep(c(0,1,0), c(10,1,10)), 2104)   ## label which one is a canonical miRBase start 
+isoform.annotation.full = data.frame(isoform.annotation.full, Canonical)
+colnames(isoform.annotation.full) = c("Chrom", "Start", "Name", "Mature_ID", "Strand", "Is_Canonical")
+
+
+## Create a PCA using only highly expressed microRNAs
+temp.norm = log2(sweep(isoform.counts.full+1, 2, qc$Mirna_Reads / 1e6, "/"))
+temp.mean = apply(isoform.counts.full, 1, mean)
+temp.ind = qc$Protocol == "Multiplex"
+
+o = order(temp.mean, decreasing=TRUE)
+mir.pca = prcomp(t(scale(t(temp.norm[o[1:200],]))), center=FALSE)  ## PCA for 200 most highly expressed miRs
+x.lab = paste("PC 1 (", summary(mir.pca)$importance[2,1], "%)", sep="")
+y.lab = paste("PC 2 (", summary(mir.pca)$importance[2,2], "%)", sep="")
+plot(mir.pca$rotation[,1], mir.pca$rotation[,2], col=qc$Align_Read_Len_JS_Cluster, main="MicroRNA isomiR expression (All samples, Top 200 miRs)", xlab=x.lab, ylab=y.lab, pch=19)
+
+ind = qc$Protocol == "Multiplex"
+mir.pca = prcomp(t(scale(t(temp.norm[o[1:200],ind]))), center=FALSE)  ## PCA for 200 most highly expressed miRs
+x.lab = paste("PC 1 (", summary(mir.pca)$importance[2,1], "%)", sep="")
+y.lab = paste("PC 2 (", summary(mir.pca)$importance[2,2], "%)", sep="")
+plot(mir.pca$rotation[,1], mir.pca$rotation[,2], col=qc$Align_Read_Len_JS_Cluster[ind], main="MicroRNA isomiR expression (Multiplexed samples, Top 200 miRs)", xlab=x.lab, ylab=y.lab, pch=19)
+
+## Filter HiSeq single sample/lane, replicate sample, and poor quality samples from the alignment pipeline
+bad.cluster = rownames(qc)[which(qc$Align_Read_Len_JS_Cluster != 1 & qc$Align_Read_Len_JS_Cluster != 3)]
+filter.samples = c("LT046027RL_HiSeq","LT211728RU_HiSeq","LT157253RL_HiSeq","LT024952RU_HiSeq","LT185066RL_HiSeq","LT291578RU_HiSeq","LT125521LL-2", bad.cluster)
+#filter.samples = c("LT046027RL_HiSeq","LT211728RU_HiSeq","LT157253RL_HiSeq","LT024952RU_HiSeq","LT185066RL_HiSeq","LT291578RU_HiSeq","LT125521LL-2", bad.cluster)
+good.samples = setdiff(colnames(isoform.counts.full), filter.samples)
+
+qc.filter = qc[good.samples,]
+isoform.counts.filter = isoform.counts.full[,good.samples]
+demo.filter = cbind(demo.simple[good.samples,], qc[good.samples, c("Total_Reads", "Reads_aligned", "Mirna_Reads", "Flow_Cell", "Index", "Lane", "Protocol")])
+
+
+## Normalize microRNA expression
+reads.aligned = qc.filter$Mirna_Reads / 1e6
+isoform.rpm = sweep(isoform.counts.filter, 2, reads.aligned, "/")
+isoform.rpm.log2 = log2(isoform.rpm+1)
+isoform.id.number = extract.number(colnames(isoform.rpm))
+
+
+## Filter microRNAs not detected in at least 40% of samples
+mir.detect = apply(isoform.counts.filter > 1, 1, sum)
+mir.present = mir.detect > ceiling(0.50*ncol(isoform.counts.filter))
+isoform.counts.present = isoform.counts.filter[mir.present,]
+isoform.rpm.present = isoform.rpm[mir.present,]
+isoform.rpm.log2.present = isoform.rpm.log2[mir.present,]
+isoform.annotation.present = isoform.annotation.full[mir.present,]
+
+
+## Batch correct normalized miRNA values using Median centering
+b1 = demo.filter$Protocol == "Singleplex"
+b2 = demo.filter$Protocol == "Multiplex"
+isoform.rpm.log2.batch = isoform.rpm.log2.present
+isoform.rpm.log2.batch[,b1] = t(scale(t(isoform.rpm.log2.batch[,b1])))
+isoform.rpm.log2.batch[,b2] = t(scale(t(isoform.rpm.log2.batch[,b2])))
+
+## Make ExpressionSets and save as RDS objects
+eset.isoform.counts.present = ExpressionSet(assayData=isoform.counts.present, phenoData=AnnotatedDataFrame(demo.filter), featureData=AnnotatedDataFrame(data=isoform.annotation.present))
+eset.isoform.rpm.log2.present = ExpressionSet(assayData=isoform.rpm.log2.present, phenoData=AnnotatedDataFrame(demo.filter), featureData=AnnotatedDataFrame(data=isoform.annotation.present))
+eset.isoform.rpm.log2.batch = ExpressionSet(assayData=isoform.rpm.log2.batch, phenoData=AnnotatedDataFrame(demo.filter), featureData=AnnotatedDataFrame(data=isoform.annotation.present))
+saveRDS(eset.isoform.counts.present, file="../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Counts.rds")
+saveRDS(eset.isoform.rpm.log2.present, file="../../Data/MicroRNA/LGRC_MicroRNA_Isoform_RPM_Log2_Present.rds")
+saveRDS(eset.isoform.rpm.log2.batch, file="../../Data/MicroRNA/LGRC_MicroRNA_Isoform_RPM_Log2_Batch_Corrected.rds")
+
+
+
+
+
+## Parse total miR counts #############################################################################
+mir.counts.full = read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Data/MicroRNA/130720_LGRC_miRNA_Counts.txt", sep="\t", header=TRUE, stringsAsFactors=FALSE, check.names=FALSE)
+mir.annotation.full = mir.counts.full[,1:7]
+mir.counts.full = as.matrix(mir.counts.full[,-(1:7)])
+rownames(mir.counts.full) = mir.annotation.full[,5]
+rownames(mir.annotation.full) = mir.annotation.full[,5]
+colnames(mir.annotation.full) = c("Chrom", "Start", "Stop", "Name", "Mature_ID", "Strand", "miRBase_Version")
+
+
+## Create a PCA using only highly expressed microRNAs
+temp.norm = log2(sweep(mir.counts.full+1, 2, qc$Mirna_Reads / 1e6, "/"))
+temp.mean = apply(mir.counts.full, 1, mean)
+temp.ind = qc$Protocol == "Multiplex"
+
+o = order(temp.mean, decreasing=TRUE)
+mir.pca = prcomp(t(scale(t(temp.norm[o[1:200],]))), center=FALSE)  ## PCA for 200 most highly expressed miRs
+x.lab = paste("PC 1 (", summary(mir.pca)$importance[2,1], "%)", sep="")
+y.lab = paste("PC 2 (", summary(mir.pca)$importance[2,2], "%)", sep="")
+plot(mir.pca$rotation[,1], mir.pca$rotation[,2], col=qc$Align_Read_Len_JS_Cluster, main="MicroRNA expression (All samples, Top 200 miRs)", xlab=x.lab, ylab=y.lab, pch=19)
+
+ind = qc$Protocol == "Multiplex"
+mir.pca = prcomp(t(scale(t(temp.norm[o[1:200],ind]))), center=FALSE)  ## PCA for 200 most highly expressed miRs
+x.lab = paste("PC 1 (", summary(mir.pca)$importance[2,1], "%)", sep="")
+y.lab = paste("PC 2 (", summary(mir.pca)$importance[2,2], "%)", sep="")
+plot(mir.pca$rotation[,1], mir.pca$rotation[,2], col=qc$Align_Read_Len_JS_Cluster[ind], main="MicroRNA expression (Multiplexed samples, Top 200 miRs)", xlab=x.lab, ylab=y.lab, pch=19)
+
+
+## Filter HiSeq single sample/lane, replicate sample, and poor quality samples from the alignment pipeline
+bad.cluster = rownames(qc)[which(qc$Align_Read_Len_JS_Cluster != 1 & qc$Align_Read_Len_JS_Cluster != 3)]
+filter.samples = c("LT046027RL_HiSeq","LT211728RU_HiSeq","LT157253RL_HiSeq","LT024952RU_HiSeq","LT185066RL_HiSeq","LT291578RU_HiSeq","LT125521LL-2", bad.cluster)
+#filter.samples = c("LT046027RL_HiSeq","LT211728RU_HiSeq","LT157253RL_HiSeq","LT024952RU_HiSeq","LT185066RL_HiSeq","LT291578RU_HiSeq","LT125521LL-2", bad.cluster)
+good.samples = setdiff(colnames(mir.counts.full), filter.samples)
+
+qc.filter = qc[good.samples,]
+mir.counts.filter = mir.counts.full[,good.samples]
+demo.filter = cbind(demo.simple[good.samples,], qc[good.samples, c("Total_Reads", "Reads_aligned", "Mirna_Reads", "Flow_Cell", "Index", "Lane", "Protocol")])
+
+
+## Normalize microRNA expression
+mir.rpm = sweep(mir.counts.filter, 2, reads.aligned, "/")
+mir.rpm.log2 = log2(mir.rpm+1)
+mir.id.number = extract.number(colnames(mir.rpm))
+
+
+## Filter microRNAs not detected in at least 40% of samples
+mir.detect = apply(mir.counts.filter > 1, 1, sum)
+mir.present = mir.detect > ceiling(0.50*ncol(mir.counts.filter))
+mir.counts.present = mir.counts.filter[mir.present,]
+mir.rpm.present = mir.rpm[mir.present,]
+mir.rpm.log2.present = mir.rpm.log2[mir.present,]
+mir.annotation.present = mir.annotation.full[mir.present,]
+
+
+## Batch correct normalized miRNA values using Median centering
+mir.rpm.log2.batch = mir.rpm.log2.present
+mir.rpm.log2.batch[,b1] = t(scale(t(mir.rpm.log2.batch[,b1])))
+mir.rpm.log2.batch[,b2] = t(scale(t(mir.rpm.log2.batch[,b2])))
+
+
+## Make ExpressionSets and save as RDS objects
+eset.mir.counts.present = ExpressionSet(assayData=mir.counts.present, phenoData=AnnotatedDataFrame(demo.filter), featureData=AnnotatedDataFrame(data=mir.annotation.present))
+eset.mir.rpm.log2.present = ExpressionSet(assayData=mir.rpm.log2.present, phenoData=AnnotatedDataFrame(demo.filter), featureData=AnnotatedDataFrame(data=mir.annotation.present))
+eset.mir.rpm.log2.batch = ExpressionSet(assayData=mir.rpm.log2.batch, phenoData=AnnotatedDataFrame(demo.filter), featureData=AnnotatedDataFrame(data=mir.annotation.present))
+saveRDS(eset.mir.counts.present, file="../../Data/MicroRNA/LGRC_MicroRNA_Counts.rds")
+saveRDS(eset.mir.rpm.log2.present, file="../../Data/MicroRNA/LGRC_MicroRNA_RPM_Log2_Present.rds")
+saveRDS(eset.mir.rpm.log2.batch, file="../../Data/MicroRNA/LGRC_MicroRNA_RPM_Log2_Batch_Corrected.rds")
+
+
+
+## Read and QC mRNA array data ##################################################################################################################################
+gene.full = as.matrix(read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Data/Gene/121212_LGRC_Gene_All_Samples_unique_row.txt", header=TRUE, row.names=1, sep="\t"))
+gene.annotation = read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Data/Gene/121212_LGRC_Gene_Array_Annotation.txt", sep="\t", header=TRUE, comment="", quote="", row.names=2)
+gene.full.id.number = extract.number(colnames(gene.full))
+
+
+## Infer sex based on gene expression
+sex.genes = c("CYorf15A","DDX3Y","KDM5D","RPS4Y1","UTY")
+sex.ind = match(sex.genes, gene.annotation$GENE_SYMBOL)
+mRNA.inferred.sex = cutree(hclust(dist(t(gene.full[sex.ind,])), method="average"), k=2)
+
+overlap.gene.mir = intersect(gene.full.id.number, isoform.id.number)
+gene.overlap.ind = match(overlap.gene.mir, gene.full.id.number)
+mir.overlap.ind = match(overlap.gene.mir, mir.id.number)
+mir.isoform.overlap.ind = match(overlap.gene.mir, isoform.id.number)
+
+## Perform PCA for unfiltered gene expression data (but for samples that overlap with miR seq data)
+gene.pca = prcomp(t(scale(t(gene.full[,gene.overlap.ind]))), center=FALSE)
+x.lab = paste("PC 1 (", summary(gene.pca)$importance[2,1], "%)", sep="")
+y.lab = paste("PC 2 (", summary(gene.pca)$importance[2,2], "%)", sep="")
+plot(gene.pca$rotation[,1], gene.pca$rotation[,2], main="Gene expression unfiltered", xlab=x.lab, ylab=y.lab, pch=19)
+pca.outlier = extract.number(rownames(gene.pca$rotation)[gene.pca$rotation[,2] < -0.4])
+ 
+
+## Get Sex mismatches called by Gene or SNP vs Demographics data. Also get mismatches between RNA and DNA as called by Ke Hao's group at Mount Sinai
+gene.sex.mismatch = overlap.gene.mir[demo.filter$Gender[mir.overlap.ind] == mRNA.inferred.sex[gene.overlap.ind]]  ## Check to see if inferred sex matches clinical gender
+snp.sex.mismatch = extract.number(scan("/protected/projects/lgrc/small_RNA/Final_Analysis/Annotation/SNP/Mismatch_SNP_Sex_vs_Demographic_Gender.txt", what=""))
+snp.rna.mismatch = extract.number(read.table("/protected/projects/lgrc/small_RNA/Final_Analysis/Annotation/SNP/Mismatch_SNP_DNA_vs_RNA.txt", header=TRUE)[,1])
+
+overlap.gene.mir.filter = setdiff(overlap.gene.mir, c(gene.sex.mismatch, snp.sex.mismatch, snp.rna.mismatch))
+gene.overlap.ind = match(overlap.gene.mir.filter, gene.full.id.number)
+mir.overlap.ind = match(overlap.gene.mir.filter, mir.id.number)
+mir.isoform.overlap.ind = match(overlap.gene.mir.filter, isoform.id.number)
+
+gene.overlap = gene.full[,gene.overlap.ind]
+isoform.overlap = isoform.rpm.log2.batch[,mir.overlap.ind]
+mir.overlap = mir.rpm.log2.batch[,mir.overlap.ind]
+demo.overlap = demo.filter[colnames(mir.overlap),]
+
+
+## Make gene sample IDs identical to those of the miR samples, but save original in the demo info
+gene.demo.overlap = data.frame(demo.overlap, "Original_Gene_Array_ID"=colnames(gene.overlap))
+colnames(gene.overlap) = rownames(demo.overlap)
+
+## Perform PCA for filtered gene expression data
+gene.pca.filtered = prcomp(t(scale(t(gene.overlap))), center=FALSE)
+x.lab = paste("PC 1 (", summary(gene.pca.filtered)$importance[2,1], "%)", sep="")
+y.lab = paste("PC 2 (", summary(gene.pca.filtered)$importance[2,2], "%)", sep="")
+plot(gene.pca.filtered$rotation[,1], gene.pca.filtered$rotation[,2], main="Gene expression filtered", xlab=x.lab, ylab=y.lab, pch=19)
+
+
+## Make ExpressionSets and save as RDS objects
+eset.gene.overlap.mir = ExpressionSet(assayData=gene.overlap, phenoData=AnnotatedDataFrame(gene.demo.overlap), featureData=AnnotatedDataFrame(gene.annotation))
+eset.isoform.overlap.gene = ExpressionSet(assayData=isoform.overlap, phenoData=AnnotatedDataFrame(demo.overlap), featureData=AnnotatedDataFrame(isoform.annotation.present))
+eset.mir.overlap.gene = ExpressionSet(assayData=mir.overlap, phenoData=AnnotatedDataFrame(demo.overlap), featureData=AnnotatedDataFrame(mir.annotation.present))
+
+saveRDS(eset.gene.overlap.mir, file="../../Data/Gene/LGRC_Gene_Overlap_MicroRNA.rds")
+saveRDS(eset.isoform.overlap.gene, file="../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_Gene.rds")
+saveRDS(eset.mir.overlap.gene, file="../../Data/MicroRNA/LGRC_MicroRNA_Overlap_Gene.rds")
+
+
+
+## Read and QC SNP array data #####################################################################################################################################
+
+## Estimate number of columns and determine which samples actually need to be read in
+snp.full.head = as.matrix(read.table(gzfile("/protected/projects/lgrc/SNP/Data/LGRC_SNP_full_cohort.txt.gz"), header=TRUE, sep="\t",as.is=TRUE, check.names=FALSE, row.names=1, nrows=100))
+
+## Determine samples to exclude based on race other than caucasian or missing smoking status 
+#race.filter = extract.number(rownames(demo.overlap)[demo.overlap$Race != 1 | is.na(demo.overlap$Race)])
+smoke.na = extract.number(rownames(demo.overlap)[is.na(demo.overlap$Smoke)])
+
+## Subset SNP samples into those that overlap with miR/gene samples and pass QC
+## Note that SNP chips where gender did not match expression or demographics have already been filtered out when finding the miR/gene overlap above
+snp.full.id.number = extract.number(colnames(snp.full.head))
+mir.id.number = extract.number(colnames(mir.overlap))
+gene.id.number = extract.number(colnames(gene.overlap))
+
+## SNP samples filtered after examining SNP PCA
+snp.filter = c("LT007392RU", "LT234774LU")
+snp.filter.id.number = extract.number(snp.filter)
+
+## Read in SNP data (Warning: Requires substantial memory)
+overlap.snp.id = setdiff(Intersect(snp.full.id.number, mir.id.number, gene.id.number), c(smoke.na, snp.filter.id.number))
+cC = rep("NULL", ncol(snp.full.head))
+cC[snp.full.id.number %in% overlap.snp.id] = "integer"
+cC = c("character", cC)
+
+snp.full = as.matrix(read.table(gzfile("/protected/projects/lgrc/SNP/Data/LGRC_SNP_full_cohort.txt.gz"), header=TRUE, sep="\t", colClasses=cC, as.is=TRUE, check.names=FALSE, row.names=1))
+gc()
+
+## Determine samples to exclude based on low call rate
+sample.call.rate = apply(!is.na(snp.full), 2, sum) / nrow(snp.full)
+print(sum(sample.call.rate < 0.98))
+sample.call.rate.filter = extract.number(colnames(snp.full)[sample.call.rate < 0.98])
+
+
+## Get overlap of samples for different analytes
+overlap.all.id = setdiff(overlap.snp.id, sample.call.rate.filter)
+snp.overlap = snp.full[,match(overlap.all.id, overlap.snp.id)]
+mir.snp.overlap = mir.overlap[,match(overlap.all.id, mir.id.number)]
+isoform.snp.overlap = isoform.overlap[,match(overlap.all.id, mir.id.number)]
+gene.snp.overlap = gene.overlap[,match(overlap.all.id, gene.id.number)]
+rm(snp.full)
+gc()
+ 
+cat("Number of samples that passed SNP QC and overlapped with gene and miR samples:\n")
+print(ncol(snp.overlap))
+
+
+## Make SNP sample IDs identical to those of the miR samples, but save original IDs in the demo info
+snp.demo.overlap = gene.demo.overlap[colnames(gene.snp.overlap),]
+snp.demo.overlap = data.frame(snp.demo.overlap, "Original_SNP_Array_ID"=colnames(snp.overlap))
+colnames(snp.overlap) = rownames(snp.demo.overlap)
+
+
+## Calculate missing data
+snp.is.missing = apply(!is.na(snp.overlap), 1, sum) / ncol(snp.overlap)
+
+# Calculate hardy-weinberg and minor allele frequency  
+allele.counts = cbind(apply(snp.overlap==0,1,sum,na.rm=TRUE), apply(snp.overlap==1,1,sum,na.rm=TRUE), apply(snp.overlap==2,1,sum,na.rm=TRUE))
+HWpval = HWExactMat(allele.counts)$pvalvec
+  
+maf.percent = maf(allele.counts)
+maf.percent[is.na(maf.percent)] = 0
+
+print(sum(snp.is.missing <= 0.9))
+print(sum(HWpval <= 1e-6))
+print(sum(maf.percent <= 0.1))
+
+## Filter SNPs
+snp.overlap.filter = snp.overlap[!(snp.is.missing <= 0.9 | maf.percent <= 0.1 | HWpval <= 1e-6),]
+print(nrow(snp.overlap.filter))
+rm(snp.overlap)
+gc()
+
+snp.copd = snp.overlap.filter[,snp.demo.overlap$COPD == 1]
+snp.ild = snp.overlap.filter[,snp.demo.overlap$ILD == 1]
+snp.control = snp.overlap.filter[,snp.demo.overlap$Control == 1]
+
+
+## Test for sufficient number of samples in AB or BB groups. If not, all samples in those groups are set to NA.
+snp.overlap.filter.num = snp.overlap.filter
+for(i in 1:nrow(snp.overlap.filter.num)) {
+  snp.overlap.filter.num[i,] = sufficient.num(snp.overlap.filter.num[i,])
+}
+
+snp.copd.suff.num = snp.copd
+for(i in 1:nrow(snp.copd.suff.num)) {
+  snp.copd.suff.num[i,] = sufficient.num(snp.copd.suff.num[i,])
+}
+
+snp.ild.suff.num = snp.ild
+for(i in 1:nrow(snp.ild.suff.num)) {
+  snp.ild.suff.num[i,] = sufficient.num(snp.ild.suff.num[i,])
+}
+
+snp.control.suff.num = snp.control
+for(i in 1:nrow(snp.control.suff.num)) {
+  snp.control.suff.num[i,] = sufficient.num(snp.control.suff.num[i,])
+}
+
+
+## Write SNP tables to be used in MatrixEQTL analysis
+write.table2(snp.overlap.filter, "../../Data/SNP/LGRC_SNP_All_Samples.txt")
+write.table2(snp.overlap.filter.num, "../../Data/SNP/LGRC_SNP_All_Samples_GroupMin5.txt")
+write.table2(snp.ild, "../../Data/SNP/LGRC_SNP_ILD_Samples.txt")
+write.table2(snp.ild.suff.num, "../../Data/SNP/LGRC_SNP_ILD_Samples_GroupMin5.txt")
+write.table2(snp.copd, "../../Data/SNP/LGRC_SNP_COPD_Samples.txt")
+write.table2(snp.copd.suff.num, "../../Data/SNP/LGRC_SNP_COPD_Samples_GroupMin5.txt")
+write.table2(snp.control, "../../Data/SNP/LGRC_SNP_Control_Samples.txt")
+write.table2(snp.control.suff.num, "../../Data/SNP/LGRC_SNP_Control_Samples_GroupMin5.txt")
+
+## Write MicroRNA expression tables to be used in MatrixEQTL analysis
+write.table2(mir.snp.overlap, "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.txt")
+write.table2(mir.snp.overlap[,snp.demo.overlap$ILD == 1], "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_ILD_Samples.txt")
+write.table2(mir.snp.overlap[,snp.demo.overlap$COPD == 1], "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_COPD_Samples.txt")
+write.table2(mir.snp.overlap[,snp.demo.overlap$Control == 1], "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_Control_Samples.txt")
+
+write.table2(isoform.snp.overlap, "../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.txt")
+write.table2(isoform.snp.overlap[,snp.demo.overlap$ILD == 1], "../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_SNP_ILD_Samples.txt")
+write.table2(isoform.snp.overlap[,snp.demo.overlap$COPD == 1], "../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_SNP_COPD_Samples.txt")
+write.table2(isoform.snp.overlap[,snp.demo.overlap$Control == 1], "../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_SNP_Control_Samples.txt")
+
+## Write Gene expression tables to be used in MatrixEQTL analysis
+write.table2(gene.snp.overlap, "../../Data/Gene/LGRC_Gene_Overlap_SNP_All_Samples.txt")
+write.table2(gene.snp.overlap[,snp.demo.overlap$ILD == 1], "../../Data/Gene/LGRC_Gene_Overlap_SNP_ILD_Samples.txt")
+write.table2(gene.snp.overlap[,snp.demo.overlap$COPD == 1], "../../Data/Gene/LGRC_Gene_Overlap_SNP_COPD_Samples.txt")
+write.table2(gene.snp.overlap[,snp.demo.overlap$Control == 1], "../../Data/Gene/LGRC_Gene_Overlap_SNP_Control_Samples.txt")
+
+
+
+## Write expression sets to be used in Causality Inference Test (CIT) after subtracting out effect of covariates
+corrected.mir = residual.matrix(mir.snp.overlap, model.matrix(~ as.factor(Smoke) + as.factor(Gender) + Age, data=snp.demo.overlap))
+eset.snp.mir = ExpressionSet(assayData=mir.snp.overlap, phenoData=AnnotatedDataFrame(snp.demo.overlap), featureData=AnnotatedDataFrame(data=mir.annotation.present))
+eset.snp.mir.corrected = ExpressionSet(assayData=corrected.mir, phenoData=AnnotatedDataFrame(snp.demo.overlap), featureData=AnnotatedDataFrame(data=mir.annotation.present))
+
+corrected.isomir = residual.matrix(isoform.snp.overlap, model.matrix(~ as.factor(Smoke) + as.factor(Gender) + Age, data=snp.demo.overlap))
+eset.snp.isomir = ExpressionSet(assayData=isoform.snp.overlap, phenoData=AnnotatedDataFrame(snp.demo.overlap), featureData=AnnotatedDataFrame(data=isoform.annotation.present))
+eset.snp.isomir.corrected = ExpressionSet(assayData=corrected.isomir, phenoData=AnnotatedDataFrame(snp.demo.overlap), featureData=AnnotatedDataFrame(data=isoform.annotation.present))
+
+corrected.gene = residual.matrix(gene.snp.overlap, model.matrix(~ as.factor(Smoke) + as.factor(Gender) + Age, data=snp.demo.overlap))
+eset.snp.gene = ExpressionSet(assayData=gene.snp.overlap, phenoData=AnnotatedDataFrame(snp.demo.overlap), featureData=AnnotatedDataFrame(data=gene.annotation))
+eset.snp.gene.corrected = ExpressionSet(assayData=corrected.gene, phenoData=AnnotatedDataFrame(snp.demo.overlap), featureData=AnnotatedDataFrame(data=gene.annotation))
+
+saveRDS(eset.snp.mir, file="../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples.rds")
+saveRDS(eset.snp.mir.corrected, file="../../Data/MicroRNA/LGRC_MicroRNA_Overlap_SNP_All_Samples_Adjusted.rds")
+saveRDS(eset.snp.isomir, file="../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_SNP_All_Samples.rds")
+saveRDS(eset.snp.isomir.corrected, file="../../Data/MicroRNA/LGRC_MicroRNA_Isoform_Overlap_SNP_All_Samples_Adjusted.rds")
+saveRDS(eset.snp.gene, file="../../Data/Gene/LGRC_Gene_Overlap_SNP_All_Samples.rds")
+saveRDS(eset.snp.gene.corrected, file="../../Data/Gene/LGRC_Gene_Overlap_SNP_All_Samples_Adjusted.rds")
+
+
+dev.off()
+
+sessionInfo()
+date()

@@ -1,0 +1,9 @@
+ID	Gene Name	Species
+GRAP	GRB2-related adaptor protein	Homo sapiens	
+RAPGEF6	Rap guanine nucleotide exchange factor (GEF) 6	Homo sapiens	
+SHC3	SHC (Src homology 2 domain containing) transforming protein 3	Homo sapiens	
+GRB2	growth factor receptor-bound protein 2	Homo sapiens	
+MAPKAPK3	mitogen-activated protein kinase-activated protein kinase 3	Homo sapiens	
+RHOA	ras homolog gene family, member A	Homo sapiens	
+YWHAB	tyrosine 3-monooxygenase/tryptophan 5-monooxygenase activation protein, beta polypeptide	Homo sapiens	
+RALA	v-ral simian leukemia viral oncogene homolog A (ras related)	Homo sapiens	
